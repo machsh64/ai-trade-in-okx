@@ -220,7 +220,7 @@ def call_ai_for_decision(account: Account, portfolio: Dict, prices: Dict[str, fl
                     if dec.leverage and dec.leverage > 1:
                         recent_decisions_text += f"   Leverage: {dec.leverage}x\n"
                     recent_decisions_text += f"   Executed: {'Yes' if dec.executed == 'true' else 'No'}\n"
-                    recent_decisions_text += f"   Reason: {dec.reason[:150]}{'...' if len(dec.reason) > 150 else ''}\n"
+                    recent_decisions_text += f"   Reason: {dec.reason[:600]}{'...' if len(dec.reason) > 600 else ''}\n"
                 
                 recent_decisions_text += "\n⚠️ IMPORTANT: Review your recent decisions before making a new one!\n"
                 recent_decisions_text += "- Avoid opening and closing positions too frequently (overtrading)\n"
