@@ -194,8 +194,16 @@ def _select_side(db: Session, account: Account, symbol: str, max_value: float) -
     return side, quantity
 
 
-def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
-    """Place crypto order based on AI model decision for all active accounts"""
+def place_ai_driven_crypto_order(max_ratio: float = 0.2, manual_decision: dict = None) -> None:
+    """
+    Place crypto order based on AI model decision for all active accounts
+    
+    参数：
+        max_ratio: 最大仓位比例（默认 0.2 = 20%）
+        manual_decision: 手动测试决策数据（可选）
+                        如果提供此参数，则使用手动决策而不调用AI接口
+                        仅用于测试脚本，不影响正常AI定时任务
+    """
     db = SessionLocal()
     try:
         accounts = get_active_ai_accounts(db)
@@ -212,7 +220,10 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
         # Iterate through all active accounts
         for account in accounts:
             try:
-                logger.info(f"Processing AI trading for account: {account.name}")
+                if manual_decision:
+                    logger.info(f"🧪 [TEST MODE] Processing manual test for account: {account.name}")
+                else:
+                    logger.info(f"Processing AI trading for account: {account.name}")
                 
                 # Get portfolio data for this account
                 portfolio = _get_portfolio_data(db, account)
@@ -221,11 +232,17 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     logger.debug(f"Account {account.name} has non-positive total assets, skipping")
                     continue
 
-                # Call AI for trading decision (传入 db 参数以获取历史记录)
-                decision = call_ai_for_decision(account, portfolio, prices, db=db)
-                if not decision or not isinstance(decision, dict):
-                    logger.warning(f"Failed to get AI decision for {account.name}, skipping")
-                    continue
+                # 如果提供了 manual_decision 参数，使用手动测试数据（仅测试脚本使用）
+                # 否则调用 AI API 获取决策（正常定时任务流程）
+                if manual_decision:
+                    decision = manual_decision
+                    logger.info(f"📋 [TEST MODE] Using manual decision: {decision}")
+                else:
+                    # Call AI for trading decision (传入 db 参数以获取历史记录)
+                    decision = call_ai_for_decision(account, portfolio, prices, db=db)
+                    if not decision or not isinstance(decision, dict):
+                        logger.warning(f"Failed to get AI decision for {account.name}, skipping")
+                        continue
 
                 operation = decision.get("operation", "").lower() if decision.get("operation") else ""
                 symbol = decision.get("symbol", "").upper() if decision.get("symbol") else ""
@@ -340,7 +357,7 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                 quantity = None
                 
                 # 获取当前价格（用于计算开仓数量）
-                from services.okx_market_data import fetch_ticker_okx, get_market_precision_okx
+                from services.okx_market_data import fetch_ticker_okx, get_market_precision_okx, _get_client
                 try:
                     ticker = fetch_ticker_okx(ccxt_symbol, account=account)
                     current_price = float(ticker.get('last', 0))
@@ -350,13 +367,23 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                         continue
                     logger.info(f"[DEBUG] Current price for {symbol}: ${current_price:.2f}")
                     
-                    # 获取市场精度信息
+                    # 获取市场精度信息和合约大小
                     precision_info = get_market_precision_okx(ccxt_symbol, account=account)
                     amount_precision = precision_info.get('amount', 1)
                     min_amount = precision_info.get('min_amount', 1)
                     max_amount = precision_info.get('max_amount', None)  # 最大数量限制
                     max_cost = precision_info.get('max_cost', None)  # 最大金额限制
-                    logger.info(f"[DEBUG] Market precision for {symbol}: amount_precision={amount_precision}, min_amount={min_amount}, max_amount={max_amount}, max_cost={max_cost}")
+                    
+                    # 获取合约大小（contractSize）
+                    # 对于 BTC-USDT-SWAP：1张合约 = 0.01 BTC
+                    # 对于 ETH-USDT-SWAP：1张合约 = 0.01 ETH
+                    client = _get_client(account=account)
+                    if not client.public_exchange.markets:
+                        client.public_exchange.load_markets()
+                    market = client.public_exchange.markets.get(ccxt_symbol)
+                    contract_size = market.get('contractSize', 1) if market else 1  # 默认为1（现货）
+                    
+                    logger.info(f"[DEBUG] Market info for {symbol}: amount_precision={amount_precision}, min_amount={min_amount}, max_amount={max_amount}, max_cost={max_cost}, contractSize={contract_size}")
                     
                 except Exception as e:
                     logger.error(f"Failed to fetch price/precision for {symbol}: {e}")
@@ -375,7 +402,17 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     
                     # 计算开仓数量：(资金 * 比例 * 杠杆) / 当前价格
                     order_value_usdt = available_balance * target_portion * leverage
-                    quantity = order_value_usdt / current_price
+                    quantity_in_base = order_value_usdt / current_price  # 币的数量（如 BTC 数量）
+                    
+                    # 对于永续合约，CCXT的amount参数是合约张数，不是币的数量
+                    # 需要将币的数量转换为合约张数：quantity = 币数量 / contractSize
+                    # 例如：25.94 BTC / 0.01 (contractSize) = 2594 张合约
+                    quantity_in_contracts = quantity_in_base / contract_size if contract_size > 0 else quantity_in_base
+                    
+                    logger.info(f"[DEBUG] Calculated quantity: {quantity_in_base:.4f} {symbol} = {quantity_in_contracts:.2f} contracts (contractSize={contract_size})")
+                    
+                    # 使用合约张数进行后续计算
+                    quantity = quantity_in_contracts
                     
                     # 使用OKX返回的精度信息进行舍入
                     # amount_precision 是精度值，如 0.01（两位小数）、0.001（三位小数）、1（整数）
@@ -391,20 +428,23 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     
                     # 确保不低于最小数量
                     if quantity < min_amount:
-                        logger.warning(f"Calculated quantity {quantity} below min {min_amount}, adjusting")
+                        logger.warning(f"Calculated quantity {quantity} contracts below min {min_amount}, adjusting")
                         quantity = min_amount
                     
                     # 检查是否超过最大数量限制
                     if max_amount and quantity > max_amount:
-                        logger.warning(f"Calculated quantity {quantity} exceeds max {max_amount}, capping to maximum")
+                        logger.warning(f"Calculated quantity {quantity} contracts exceeds max {max_amount}, capping to maximum")
                         quantity = max_amount
                     
                     # 检查是否超过最大金额限制
                     if max_cost:
-                        max_quantity_by_cost = max_cost / current_price
-                        if quantity > max_quantity_by_cost:
-                            logger.warning(f"Calculated quantity {quantity} exceeds max cost limit (max_cost=${max_cost}), capping to {max_quantity_by_cost}")
-                            quantity = max_quantity_by_cost
+                        # max_cost 是 USDT 金额限制
+                        # 先转换为币的数量，再转换为合约张数
+                        max_quantity_in_base = max_cost / current_price
+                        max_quantity_in_contracts = max_quantity_in_base / contract_size if contract_size > 0 else max_quantity_in_base
+                        if quantity > max_quantity_in_contracts:
+                            logger.warning(f"Calculated quantity {quantity} contracts exceeds max cost limit (max_cost=${max_cost}), capping to {max_quantity_in_contracts}")
+                            quantity = max_quantity_in_contracts
                             # 重新应用精度
                             if amount_precision >= 1:
                                 quantity = int(quantity)
@@ -413,7 +453,10 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                                 decimal_places = -int(math.log10(amount_precision))
                                 quantity = round(quantity, decimal_places)
                     
-                    logger.info(f"[DEBUG] Calculated buy_long quantity: {quantity} {symbol} (value=${order_value_usdt:.2f})")
+                    # 计算实际币数量（用于日志）
+                    actual_base_quantity = quantity * contract_size
+                    actual_cost = actual_base_quantity * current_price
+                    logger.info(f"[DEBUG] Final buy_long: {quantity} contracts = {actual_base_quantity:.4f} {symbol} (value=${actual_cost:.2f})")
                     
                     if quantity <= 0:
                         logger.info(f"Calculated quantity too small for {symbol}, skipping")
@@ -432,7 +475,17 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     
                     # 计算开仓数量：(资金 * 比例 * 杠杆) / 当前价格
                     order_value_usdt = available_balance * target_portion * leverage
-                    quantity = order_value_usdt / current_price
+                    quantity_in_base = order_value_usdt / current_price  # 币的数量（如 BTC 数量）
+                    
+                    # 对于永续合约，CCXT的amount参数是合约张数，不是币的数量
+                    # 需要将币的数量转换为合约张数：quantity = 币数量 / contractSize
+                    # 例如：25.94 BTC / 0.01 (contractSize) = 2594 张合约
+                    quantity_in_contracts = quantity_in_base / contract_size if contract_size > 0 else quantity_in_base
+                    
+                    logger.info(f"[DEBUG] Calculated quantity: {quantity_in_base:.4f} {symbol} = {quantity_in_contracts:.2f} contracts (contractSize={contract_size})")
+                    
+                    # 使用合约张数进行后续计算
+                    quantity = quantity_in_contracts
                     
                     # 使用OKX返回的精度信息进行舍入
                     # amount_precision 是精度值，如 0.01（两位小数）、0.001（三位小数）、1（整数）
@@ -448,20 +501,23 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     
                     # 确保不低于最小数量
                     if quantity < min_amount:
-                        logger.warning(f"Calculated quantity {quantity} below min {min_amount}, adjusting")
+                        logger.warning(f"Calculated quantity {quantity} contracts below min {min_amount}, adjusting")
                         quantity = min_amount
                     
                     # 检查是否超过最大数量限制
                     if max_amount and quantity > max_amount:
-                        logger.warning(f"Calculated quantity {quantity} exceeds max {max_amount}, capping to maximum")
+                        logger.warning(f"Calculated quantity {quantity} contracts exceeds max {max_amount}, capping to maximum")
                         quantity = max_amount
                     
                     # 检查是否超过最大金额限制
                     if max_cost:
-                        max_quantity_by_cost = max_cost / current_price
-                        if quantity > max_quantity_by_cost:
-                            logger.warning(f"Calculated quantity {quantity} exceeds max cost limit (max_cost=${max_cost}), capping to {max_quantity_by_cost}")
-                            quantity = max_quantity_by_cost
+                        # max_cost 是 USDT 金额限制
+                        # 先转换为币的数量，再转换为合约张数
+                        max_quantity_in_base = max_cost / current_price
+                        max_quantity_in_contracts = max_quantity_in_base / contract_size if contract_size > 0 else max_quantity_in_base
+                        if quantity > max_quantity_in_contracts:
+                            logger.warning(f"Calculated quantity {quantity} contracts exceeds max cost limit (max_cost=${max_cost}), capping to {max_quantity_in_contracts}")
+                            quantity = max_quantity_in_contracts
                             # 重新应用精度
                             if amount_precision >= 1:
                                 quantity = int(quantity)
@@ -470,7 +526,10 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                                 decimal_places = -int(math.log10(amount_precision))
                                 quantity = round(quantity, decimal_places)
                     
-                    logger.info(f"[DEBUG] Calculated sell_short quantity: {quantity} {symbol} (value=${order_value_usdt:.2f})")
+                    # 计算实际币数量（用于日志）
+                    actual_base_quantity = quantity * contract_size
+                    actual_cost = actual_base_quantity * current_price
+                    logger.info(f"[DEBUG] Final sell_short: {quantity} contracts = {actual_base_quantity:.4f} {symbol} (value=${actual_cost:.2f})")
                     
                     if quantity <= 0:
                         logger.info(f"Calculated quantity too small for {symbol}, skipping")
