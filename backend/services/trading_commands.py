@@ -378,12 +378,16 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     quantity = order_value_usdt / current_price
                     
                     # 使用OKX返回的精度信息进行舍入
+                    # amount_precision 是精度值，如 0.01（两位小数）、0.001（三位小数）、1（整数）
                     if amount_precision >= 1:
-                        # 精度>=1表示整数或0.1, 0.01等
-                        quantity = round(quantity, amount_precision)
-                    else:
-                        # 精度<1表示整数（如DOGE）
+                        # 精度>=1表示只能是整数（如DOGE，amount_precision=1）
                         quantity = int(quantity)
+                    else:
+                        # 精度<1表示小数（如BTC的0.01, 0.001等）
+                        # 将精度值转换为小数位数：0.01 -> 2, 0.001 -> 3
+                        import math
+                        decimal_places = -int(math.log10(amount_precision))
+                        quantity = round(quantity, decimal_places)
                     
                     # 确保不低于最小数量
                     if quantity < min_amount:
@@ -403,9 +407,11 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                             quantity = max_quantity_by_cost
                             # 重新应用精度
                             if amount_precision >= 1:
-                                quantity = round(quantity, amount_precision)
-                            else:
                                 quantity = int(quantity)
+                            else:
+                                import math
+                                decimal_places = -int(math.log10(amount_precision))
+                                quantity = round(quantity, decimal_places)
                     
                     logger.info(f"[DEBUG] Calculated buy_long quantity: {quantity} {symbol} (value=${order_value_usdt:.2f})")
                     
@@ -429,12 +435,16 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                     quantity = order_value_usdt / current_price
                     
                     # 使用OKX返回的精度信息进行舍入
+                    # amount_precision 是精度值，如 0.01（两位小数）、0.001（三位小数）、1（整数）
                     if amount_precision >= 1:
-                        # 精度>=1表示整数或0.1, 0.01等
-                        quantity = round(quantity, amount_precision)
-                    else:
-                        # 精度<1表示整数（如DOGE）
+                        # 精度>=1表示只能是整数（如DOGE，amount_precision=1）
                         quantity = int(quantity)
+                    else:
+                        # 精度<1表示小数（如BTC的0.01, 0.001等）
+                        # 将精度值转换为小数位数：0.01 -> 2, 0.001 -> 3
+                        import math
+                        decimal_places = -int(math.log10(amount_precision))
+                        quantity = round(quantity, decimal_places)
                     
                     # 确保不低于最小数量
                     if quantity < min_amount:
@@ -454,9 +464,11 @@ def place_ai_driven_crypto_order(max_ratio: float = 0.2) -> None:
                             quantity = max_quantity_by_cost
                             # 重新应用精度
                             if amount_precision >= 1:
-                                quantity = round(quantity, amount_precision)
-                            else:
                                 quantity = int(quantity)
+                            else:
+                                import math
+                                decimal_places = -int(math.log10(amount_precision))
+                                quantity = round(quantity, decimal_places)
                     
                     logger.info(f"[DEBUG] Calculated sell_short quantity: {quantity} {symbol} (value=${order_value_usdt:.2f})")
                     
