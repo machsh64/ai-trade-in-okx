@@ -435,25 +435,6 @@ ADDITIONAL RULES:
 - When bearish, DON'T AVOID SHORTS - use "sell_short" to profit from falling prices
 - Balance long and short positions based on market analysis
 
-💡 PARTIAL CLOSING EXAMPLES:
-Example 1 - Taking Profits on BTC Long:
-  Position: BTC LONG at $50,000, Current Price $55,000 (2x leverage)
-  P/L: +20% (5,000/50,000 × 2 = 20%)
-  Decision: Close 50% to lock in half the gains
-  JSON: {{"operation": "close_long", "symbol": "BTC", "target_portion_of_balance": 0.5, "leverage": 1, "reason": "BTC up 20% with 2x leverage. Taking 50% profit while momentum strong, letting other 50% ride."}}
-
-Example 2 - Cutting Losses on ETH Short:
-  Position: ETH SHORT at $3,000, Current Price $3,240 (3x leverage)
-  P/L: -24% (240/3,000 × 3 = 24% loss)
-  Decision: Close 80% to limit damage
-  JSON: {{"operation": "close_short", "symbol": "ETH", "target_portion_of_balance": 0.8, "leverage": 1, "reason": "ETH short showing -24% loss with 3x leverage. Cutting 80% of position to limit damage, keeping 20% in case reversal."}}
-
-Example 3 - Partial Profit Taking on SOL Long:
-  Position: SOL LONG at $100, Current Price $112 (4x leverage)
-  P/L: +48% (12/100 × 4 = 48%)
-  Decision: Close 70% to secure most gains
-  JSON: {{"operation": "close_long", "symbol": "SOL", "target_portion_of_balance": 0.7, "leverage": 1, "reason": "SOL massive +48% gain with 4x leverage. Taking 70% profit to secure gains, keeping 30% for potential continuation."}}
-
 Remember: target_portion_of_balance for closing operations = portion of POSITION to close, NOT cash!"""
 
         headers = {
