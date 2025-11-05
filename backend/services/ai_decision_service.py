@@ -301,6 +301,16 @@ Portfolio Data:
 Current Market Prices:
 {json.dumps(prices, indent=2)}
 
+📊 POSITION PROFIT/LOSS ANALYSIS:
+{chr(10).join([
+    f"- {symbol}: Entry=${pos['avg_cost']:.2f}, Current=${prices.get(symbol, 0):.2f}, "
+    f"Side={pos.get('side', 'long').upper()}, Leverage={pos.get('leverage', 1)}x, "
+    f"P/L={(((prices.get(symbol, pos['avg_cost']) - pos['avg_cost']) / pos['avg_cost'] * 100 * pos.get('leverage', 1)) if pos.get('side', 'long') == 'long' else ((pos['avg_cost'] - prices.get(symbol, pos['avg_cost'])) / pos['avg_cost'] * 100 * pos.get('leverage', 1))):.2f}% "
+    f"({'🟢 PROFIT - Consider partial close!' if (((prices.get(symbol, pos['avg_cost']) - pos['avg_cost']) / pos['avg_cost'] * 100 * pos.get('leverage', 1)) if pos.get('side', 'long') == 'long' else ((pos['avg_cost'] - prices.get(symbol, pos['avg_cost'])) / pos['avg_cost'] * 100 * pos.get('leverage', 1))) > 10 else ('🔴 LOSS - Consider cutting!' if (((prices.get(symbol, pos['avg_cost']) - pos['avg_cost']) / pos['avg_cost'] * 100 * pos.get('leverage', 1)) if pos.get('side', 'long') == 'long' else ((pos['avg_cost'] - prices.get(symbol, pos['avg_cost'])) / pos['avg_cost'] * 100 * pos.get('leverage', 1))) < -5 else '⚪ Monitoring')})"
+    for symbol, pos in portfolio['positions'].items()
+]) if portfolio['positions'] else '(No open positions)'}
+⚠️ Use the P/L% above to decide whether to take partial profits or cut losses!
+
 TECHNICAL ANALYSIS & MARKET DATA (Past 7 Days with 1-hour candles):
 {market_analysis_text}
 
@@ -345,9 +355,14 @@ YOUR DECISION FRAMEWORK:
 1. **Market Analysis**: Study all timeframes (15m, 1h, 4h, 24h, 7d) to understand short-term momentum and long-term trends
 2. **Technical Signals**: Interpret RSI, moving averages, volume, and volatility in context
 3. **Risk Assessment**: Consider volatility and market conditions when choosing leverage
-4. **Position Sizing**: Decide how much capital to deploy (0-100% of available cash)
+4. **Position Sizing**: Decide how much capital to deploy (0-30% of available cash)
 5. **News Impact**: Factor in crypto news sentiment and market events
-6. **EXIT PLANNING**: Always consider when to exit - don't let positions sit too long
+6. **PROFIT/LOSS CALCULATION**: For existing positions, calculate P/L to decide on partial closing:
+   - For LONG: P/L% = (Current_Price - Entry_Price) / Entry_Price × 100% × Leverage
+   - For SHORT: P/L% = (Entry_Price - Current_Price) / Entry_Price × 100% × Leverage
+   - Example: Entry $50k, Current $55k, Leverage 2x → LONG P/L = +20%
+   - Based on P/L%, decide if and how much to close (30%, 50%, 70%, 100%)
+7. **EXIT PLANNING**: Consider both full exits AND partial exits - don't let positions sit too long
 
 LEVERAGE GUIDELINES:
 - 1-3x: Conservative, suitable for uncertain markets or high volatility
@@ -359,9 +374,18 @@ LEVERAGE GUIDELINES:
 
 POSITION MANAGEMENT:
 - Check existing positions - if held for 5+ days without strong momentum, consider closing
-- If a position shows 15-20% profit in short-term, consider taking profits
-- If a position shows 8-10% loss, consider cutting it
+- **PROFIT TAKING STRATEGY (Dynamic Position Reduction)**:
+  * 10-15% profit: Consider taking partial profits (close 30-50% of position) to lock in gains
+  * 20-30% profit: Strongly consider reducing position by 50-70% while letting winners run
+  * 30%+ profit: Take majority of profits (close 70-90% of position), keep small portion for potential continuation
+  * Use "close_long" or "close_short" with target_portion 0.3-0.9 to partially close positions
+  * This protects profits while maintaining exposure to potential further gains
+- **LOSS MANAGEMENT**:
+  * 5-8% loss: Review position, consider reducing by 30-50% if momentum turns against you
+  * 8-12% loss: Strongly consider cutting 50-80% of position to limit damage
+  * 12%+ loss: Exit most or all of the position (close 80-100%)
 - Don't be afraid to sell and re-enter at better prices
+- Partial position closing allows you to both secure profits AND stay in winning trades
 - You can manage multiple positions: hold ETH while buying SOL, or sell BTC while keeping DOGE
 - Diversification is your friend - don't put all capital in one coin unless extremely confident
 
@@ -393,18 +417,44 @@ RULES - OPERATIONS:
 RULES - PARAMETERS:
 - symbol: Which cryptocurrency to trade (you can hold multiple different coins simultaneously)
 - target_portion_of_balance: % of available cash to use (0.0-1.0 for opening positions, 0.0-1.0 for closing)
-  * For opening (buy_long/sell_short): portion of cash to use
-  * For closing (close_long/close_short): portion of position to close (1.0 = close entire position)
+  * For opening (buy_long/sell_short): portion of cash to use (e.g., 0.2 = use 20% of cash)
+  * For closing (close_long/close_short): portion of POSITION to close (e.g., 0.5 = close 50% of position, 1.0 = close entire position)
+  * **PARTIAL CLOSING EXAMPLES**:
+    - Close 30% to take some profit: target_portion = 0.3
+    - Close 50% to secure half the gains: target_portion = 0.5
+    - Close 70% and let 30% ride: target_portion = 0.7
+    - Close everything: target_portion = 1.0
 - leverage: 1-50. Match leverage to your conviction level and market volatility
-- reason: Explain your technical analysis, focusing on SHORT-TERM momentum and exit strategy
+- reason: Explain your technical analysis, profit/loss status, and why you chose this portion size
 
 ADDITIONAL RULES:
-- You can trade up to 100% of cash if conviction is very high
+- You can trade up to 50% of cash if conviction is very high
 - Use higher leverage (20-50x) ONLY for exceptional opportunities with overwhelming technical confluence
 - Consider all timeframes: rapid changes in 15m/1h suggest short-term opportunities, 4h/24h/7d show broader trends
 - PRIORITY: Short-term trades, quick in and out, capture momentum
 - When bearish, DON'T AVOID SHORTS - use "sell_short" to profit from falling prices
-- Balance long and short positions based on market analysis"""
+- Balance long and short positions based on market analysis
+
+💡 PARTIAL CLOSING EXAMPLES:
+Example 1 - Taking Profits on BTC Long:
+  Position: BTC LONG at $50,000, Current Price $55,000 (2x leverage)
+  P/L: +20% (5,000/50,000 × 2 = 20%)
+  Decision: Close 50% to lock in half the gains
+  JSON: {{"operation": "close_long", "symbol": "BTC", "target_portion_of_balance": 0.5, "leverage": 1, "reason": "BTC up 20% with 2x leverage. Taking 50% profit while momentum strong, letting other 50% ride."}}
+
+Example 2 - Cutting Losses on ETH Short:
+  Position: ETH SHORT at $3,000, Current Price $3,240 (3x leverage)
+  P/L: -24% (240/3,000 × 3 = 24% loss)
+  Decision: Close 80% to limit damage
+  JSON: {{"operation": "close_short", "symbol": "ETH", "target_portion_of_balance": 0.8, "leverage": 1, "reason": "ETH short showing -24% loss with 3x leverage. Cutting 80% of position to limit damage, keeping 20% in case reversal."}}
+
+Example 3 - Partial Profit Taking on SOL Long:
+  Position: SOL LONG at $100, Current Price $112 (4x leverage)
+  P/L: +48% (12/100 × 4 = 48%)
+  Decision: Close 70% to secure most gains
+  JSON: {{"operation": "close_long", "symbol": "SOL", "target_portion_of_balance": 0.7, "leverage": 1, "reason": "SOL massive +48% gain with 4x leverage. Taking 70% profit to secure gains, keeping 30% for potential continuation."}}
+
+Remember: target_portion_of_balance for closing operations = portion of POSITION to close, NOT cash!"""
 
         headers = {
             "Content-Type": "application/json",
