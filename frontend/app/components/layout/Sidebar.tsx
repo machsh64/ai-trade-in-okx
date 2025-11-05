@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3, Settings, Wallet, TrendingUp } from 'lucide-react'
+import { Settings, Wallet, TrendingUp, LineChart, Database } from 'lucide-react'
 import SettingsDialog from './SettingsDialog'
 
 interface SidebarProps {
@@ -13,19 +13,31 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
 
   return (
     <>
-      <aside className="w-16 border-r h-full p-2 flex flex-col items-center fixed md:relative left-0 top-0 z-50 bg-background md:inset-auto md:bg-transparent md:flex md:flex-col md:space-y-4 md:items-center md:justify-start md:p-2 md:w-16 md:h-full md:border-r">
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex md:flex-col md:space-y-4">
+      {/* Desktop Navigation */}
+      <aside className="hidden md:block md:w-16 md:border-r md:h-full md:p-2 md:flex md:flex-col md:items-center">
+        <nav className="flex flex-col space-y-4">
           <button
             className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
-              currentPage === 'comprehensive'
+              currentPage === 'chart'
                 ? 'bg-secondary/80 text-secondary-foreground'
                 : 'hover:bg-muted text-muted-foreground'
             }`}
-            onClick={() => onPageChange?.('comprehensive')}
-            title="Trading Arena"
+            onClick={() => onPageChange?.('chart')}
+            title="Balance Chart"
           >
-            <BarChart3 className="w-5 h-5" />
+            <LineChart className="w-5 h-5" />
+          </button>
+
+          <button
+            className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+              currentPage === 'data'
+                ? 'bg-secondary/80 text-secondary-foreground'
+                : 'hover:bg-muted text-muted-foreground'
+            }`}
+            onClick={() => onPageChange?.('data')}
+            title="Trading Data"
+          >
+            <Database className="w-5 h-5" />
           </button>
 
           <button
@@ -60,20 +72,33 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
             <Settings className="w-5 h-5" />
           </button>
         </nav>
+      </aside>
 
-        {/* Mobile Navigation */}
-        <nav className="md:hidden flex flex-row items-center justify-around fixed bottom-0 left-0 right-0 bg-background border-t h-16 px-4 z-50">
+      {/* Mobile Navigation */}
+      <nav className="md:hidden flex flex-row items-center justify-around fixed bottom-0 left-0 right-0 bg-background border-t h-16 px-4 z-50">
           <button
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg transition-colors ${
-              currentPage === 'comprehensive'
+              currentPage === 'chart'
                 ? 'bg-secondary/80 text-secondary-foreground'
                 : 'hover:bg-muted text-muted-foreground'
             }`}
-            onClick={() => onPageChange?.('comprehensive')}
-            title="Trading Arena"
+            onClick={() => onPageChange?.('chart')}
+            title="Balance Chart"
           >
-            <BarChart3 className="w-5 h-5" />
-            <span className="text-xs mt-1">Arena</span>
+            <LineChart className="w-5 h-5" />
+            <span className="text-xs mt-1">Chart</span>
+          </button>
+          <button
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg transition-colors ${
+              currentPage === 'data'
+                ? 'bg-secondary/80 text-secondary-foreground'
+                : 'hover:bg-muted text-muted-foreground'
+            }`}
+            onClick={() => onPageChange?.('data')}
+            title="Trading Data"
+          >
+            <Database className="w-5 h-5" />
+            <span className="text-xs mt-1">Data</span>
           </button>
           <button
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg transition-colors ${
@@ -108,7 +133,6 @@ export default function Sidebar({ currentPage = 'comprehensive', onPageChange, o
             <span className="text-xs mt-1">Settings</span>
           </button>
         </nav>
-      </aside>
 
       {/* Settings Dialog */}
       <SettingsDialog

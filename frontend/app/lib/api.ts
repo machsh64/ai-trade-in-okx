@@ -127,6 +127,160 @@ export async function getAIDecisionStats(accountId: number, days?: number): Prom
   return response.json()
 }
 
+// Chart data API - get balance history for charts
+export interface BalanceHistoryPoint {
+  timestamp: string
+  total_balance: number
+  decision_id: number
+}
+
+export interface BalanceHistoryParams {
+  account_id: number
+  time_range: '24h' | '1w' | '30d' | 'all'  // 时间范围
+  interval: '6m' | '1h' | '1d'  // 时间周期
+  end_time?: string  // 用于分页加载历史数据
+  limit?: number  // 返回的数据点数量
+}
+
+export async function getBalanceHistory(params: BalanceHistoryParams): Promise<{
+  data: BalanceHistoryPoint[]
+  has_more: boolean
+  next_end_time?: string
+}> {
+  const queryParams = new URLSearchParams({
+    time_range: params.time_range,
+    interval: params.interval,
+  })
+  
+  if (params.end_time) queryParams.append('end_time', params.end_time)
+  if (params.limit) queryParams.append('limit', params.limit.toString())
+  
+  const response = await apiRequest(`/accounts/${params.account_id}/balance-history?${queryParams.toString()}`)
+  return response.json()
+}
+
+// Paginated data APIs
+export interface PaginationParams {
+  page: number
+  page_size: number
+}
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export async function getAIDecisionsPaginated(
+  accountId: number, 
+  pagination: PaginationParams,
+  filters?: AIDecisionFilters
+): Promise<PaginatedResponse<AIDecision>> {
+  const params = new URLSearchParams({
+    page: pagination.page.toString(),
+    page_size: pagination.page_size.toString(),
+  })
+  
+  if (filters?.operation) params.append('operation', filters.operation)
+  if (filters?.symbol) params.append('symbol', filters.symbol)
+  if (filters?.executed !== undefined) params.append('executed', filters.executed.toString())
+  if (filters?.start_date) params.append('start_date', filters.start_date)
+  if (filters?.end_date) params.append('end_date', filters.end_date)
+  
+  const response = await apiRequest(`/accounts/${accountId}/ai-decisions/paginated?${params.toString()}`)
+  return response.json()
+}
+
+export interface Position {
+  id: number
+  account_id: number
+  symbol: string
+  name: string
+  market: string
+  quantity: number
+  available_quantity: number
+  avg_cost: number
+  last_price?: number
+  market_value?: number
+}
+
+export async function getPositionsPaginated(
+  accountId: number,
+  pagination: PaginationParams
+): Promise<PaginatedResponse<Position>> {
+  const params = new URLSearchParams({
+    page: pagination.page.toString(),
+    page_size: pagination.page_size.toString(),
+  })
+  
+  const response = await apiRequest(`/accounts/${accountId}/positions/paginated?${params.toString()}`)
+  return response.json()
+}
+
+export interface Order {
+  id: number
+  order_no: string
+  symbol: string
+  name: string
+  market: string
+  side: string
+  order_type: string
+  price?: number
+  quantity: number
+  filled_quantity: number
+  status: string
+  created_at: string
+}
+
+export async function getOrdersPaginated(
+  accountId: number,
+  pagination: PaginationParams,
+  filters?: { status?: string; symbol?: string }
+): Promise<PaginatedResponse<Order>> {
+  const params = new URLSearchParams({
+    page: pagination.page.toString(),
+    page_size: pagination.page_size.toString(),
+  })
+  
+  if (filters?.status) params.append('status', filters.status)
+  if (filters?.symbol) params.append('symbol', filters.symbol)
+  
+  const response = await apiRequest(`/accounts/${accountId}/orders/paginated?${params.toString()}`)
+  return response.json()
+}
+
+export interface Trade {
+  id: number
+  order_id: number
+  account_id: number
+  symbol: string
+  name: string
+  market: string
+  side: string
+  price: number
+  quantity: number
+  commission: number
+  trade_time: string
+}
+
+export async function getTradesPaginated(
+  accountId: number,
+  pagination: PaginationParams,
+  filters?: { symbol?: string }
+): Promise<PaginatedResponse<Trade>> {
+  const params = new URLSearchParams({
+    page: pagination.page.toString(),
+    page_size: pagination.page_size.toString(),
+  })
+  
+  if (filters?.symbol) params.append('symbol', filters.symbol)
+  
+  const response = await apiRequest(`/accounts/${accountId}/trades/paginated?${params.toString()}`)
+  return response.json()
+}
+
 // User authentication interfaces
 export interface User {
   id: number

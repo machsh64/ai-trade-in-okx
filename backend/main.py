@@ -141,6 +141,7 @@ from api.ranking_routes import router as ranking_router
 from api.crypto_routes import router as crypto_router
 from api.okx_routes import router as okx_router
 from api.okx_account_routes import router as okx_account_router
+from api.chart_routes import router as chart_router
 # Removed: AI account routes merged into account_routes (unified AI trader accounts)
 
 app.include_router(market_data_router)
@@ -151,6 +152,7 @@ app.include_router(ranking_router)
 app.include_router(crypto_router)
 app.include_router(okx_router)
 app.include_router(okx_account_router)
+app.include_router(chart_router, prefix="/api", tags=["charts"])
 # app.include_router(ai_account_router, prefix="/api")  # Removed - merged into account_router
 
 # WebSocket endpoint

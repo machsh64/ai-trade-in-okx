@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import { Toaster, toast } from 'react-hot-toast'
@@ -21,10 +21,10 @@ const resolveWsUrl = () => {
 
 import Header from '@/components/layout/Header'
 import Sidebar from '@/components/layout/Sidebar'
-import ComprehensiveView from '@/components/portfolio/ComprehensiveView'
 import OKXAccountView from '@/components/portfolio/OKXAccountView'
 import ManualTradingView from '@/components/trading/ManualTradingView'
-import { AIDecision, getAccounts } from '@/lib/api'
+import BalanceChartView from '@/components/portfolio/BalanceChartView'
+import TradingDataView from '@/components/portfolio/TradingDataView'
 
 interface User {
   id: number
@@ -50,12 +50,10 @@ interface Overview {
     positions_value: number
   }
 }
-interface Position { id: number; account_id: number; symbol: string; name: string; market: string; quantity: number; available_quantity: number; avg_cost: number; last_price?: number | null; market_value?: number | null }
-interface Order { id: number; order_no: string; symbol: string; name: string; market: string; side: string; order_type: string; price?: number; quantity: number; filled_quantity: number; status: string }
-interface Trade { id: number; order_id: number; account_id: number; symbol: string; name: string; market: string; side: string; price: number; quantity: number; commission: number; trade_time: string }
 
 const PAGE_TITLES: Record<string, string> = {
-  comprehensive: 'OKX AI Trading',
+  chart: 'Balance Chart',
+  data: 'Trading Data',
   manual: 'Manual Trading',
   okx: 'OKX Account',
 }
@@ -64,16 +62,8 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
-  const [positions, setPositions] = useState<Position[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [aiDecisions, setAiDecisions] = useState<AIDecision[]>([])
-  const [allAssetCurves, setAllAssetCurves] = useState<any[]>([])
-  const [currentPage, setCurrentPage] = useState<string>('comprehensive')
-  const [accountRefreshTrigger, setAccountRefreshTrigger] = useState<number>(0)
+  const [currentPage, setCurrentPage] = useState<string>('chart')
   const wsRef = useRef<WebSocket | null>(null)
-  const [accounts, setAccounts] = useState<any[]>([])
-  const [accountsLoading, setAccountsLoading] = useState<boolean>(true)
 
   useEffect(() => {
     let reconnectTimer: NodeJS.Timeout | null = null
@@ -111,21 +101,12 @@ function App() {
                 console.log('💼 Account set:', msg.account)
                 setAccount(msg.account)
               }
-              // refresh accounts list once bootstrapped
-              refreshAccounts()
-              // request initial snapshot
+              // request initial snapshot to get overview data
               console.log('📤 Requesting initial snapshot')
               ws!.send(JSON.stringify({ type: 'get_snapshot' }))
             } else if (msg.type === 'snapshot') {
               console.log('📊 Snapshot received')
               setOverview(msg.overview)
-              setPositions(msg.positions)
-              setOrders(msg.orders)
-              setTrades(msg.trades || [])
-              setAiDecisions(msg.ai_decisions || [])
-              setAllAssetCurves(msg.all_asset_curves || [])
-            } else if (msg.type === 'trades') {
-              setTrades(msg.trades || [])
             } else if (msg.type === 'order_filled') {
               toast.success('Order filled')
               ws!.send(JSON.stringify({ type: 'get_snapshot' }))
@@ -138,7 +119,6 @@ function App() {
             } else if (msg.type === 'account_switched') {
               toast.success(`Switched to ${msg.account.name}`)
               setAccount(msg.account)
-              refreshAccounts()
             } else if (msg.type === 'error') {
               console.error(msg.message)
               toast.error(msg.message || 'Order error')
@@ -199,24 +179,6 @@ function App() {
     }
   }, [])
 
-  // Centralized accounts fetcher
-  const refreshAccounts = async () => {
-    try {
-      setAccountsLoading(true)
-      const list = await getAccounts()
-      setAccounts(list)
-    } catch (e) {
-      console.error('Failed to fetch accounts', e)
-    } finally {
-      setAccountsLoading(false)
-    }
-  }
-
-  // Fetch accounts on mount and when settings updated
-  useEffect(() => {
-    refreshAccounts()
-  }, [accountRefreshTrigger])
-
   const switchUser = (username: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.warn('WS not connected, cannot switch user')
@@ -232,35 +194,13 @@ function App() {
     }
   }
 
-  const switchAccount = (accountId: number) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.warn('WS not connected, cannot switch account')
-      toast.error('Not connected to server')
-      return
-    }
-    try {
-      wsRef.current.send(JSON.stringify({ type: 'switch_account', account_id: accountId }))
-      toast('Switching account...', { icon: '🔄' })
-    } catch (e) {
-      console.error(e)
-      toast.error('Failed to switch account')
-    }
-  }
-
   const handleAccountUpdated = () => {
-    setAccountRefreshTrigger(prev => prev + 1)
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'get_snapshot' }))
     }
   }
 
   if (!user || !account || !overview) return <div className="p-8">Connecting to trading server...</div>
-
-  const refreshData = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'get_snapshot' }))
-    }
-  }
 
   const pageTitle = PAGE_TITLES[currentPage] ?? PAGE_TITLES.comprehensive
 
@@ -271,31 +211,20 @@ function App() {
         onPageChange={setCurrentPage}
         onAccountUpdated={handleAccountUpdated}
       />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col w-full md:w-auto">
         <Header
           title={pageTitle}
           currentUser={user}
           currentAccount={account}
-          showAccountSelector={currentPage === 'comprehensive'}
+          showAccountSelector={false}
           onUserChange={switchUser}
         />
-        <main className="flex-1 p-4 overflow-hidden">
-          {currentPage === 'comprehensive' && (
-            <ComprehensiveView
-              overview={overview}
-              positions={positions}
-              orders={orders}
-              trades={trades}
-              aiDecisions={aiDecisions}
-              allAssetCurves={allAssetCurves}
-              wsRef={wsRef}
-              onSwitchUser={switchUser}
-              onSwitchAccount={switchAccount}
-              onRefreshData={refreshData}
-              accountRefreshTrigger={accountRefreshTrigger}
-              accounts={accounts}
-              loadingAccounts={accountsLoading}
-            />
+        <main className="flex-1 p-2 md:p-4 overflow-hidden pb-20 md:pb-4">
+          {currentPage === 'chart' && account && (
+            <BalanceChartView accountId={account.id} />
+          )}
+          {currentPage === 'data' && account && (
+            <TradingDataView accountId={account.id} />
           )}
           {currentPage === 'manual' && account && (
             <ManualTradingView accountId={account.id} />
