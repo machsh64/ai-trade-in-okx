@@ -41,8 +41,8 @@ ai-trade-in-okx 集成okx api，通过ai策略进行自动化交易，支持永�
 
 1. **克隆项目**
 ```bash
-git clone https://github.com/machsh64/open-alpha-trade-in-okx.git
-cd open-alpha-trade-in-okx
+git clone https://github.com/machsh64/ai-trade-in-okx.git
+cd ai-trade-in-okx
 ```
 
 2. **启用PNPM**
