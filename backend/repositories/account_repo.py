@@ -95,7 +95,11 @@ def update_account(
     okx_passphrase: str = None,
     okx_sandbox: str = None
 ) -> Optional[Account]:
-    """Update account information"""
+    """Update account information
+    
+    Note: For OKX fields, masked values (starting with ****) will not update the database.
+    This prevents accidentally overwriting real credentials with masked display values.
+    """
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return None
@@ -108,12 +112,27 @@ def update_account(
         account.base_url = base_url
     if api_key is not None:
         account.api_key = api_key
+    
+    # Only update OKX fields if they are not masked values
     if okx_api_key is not None:
-        account.okx_api_key = okx_api_key
+        if okx_api_key and not okx_api_key.startswith("****"):
+            account.okx_api_key = okx_api_key
+        elif not okx_api_key:
+            # Allow explicit clearing with empty string
+            account.okx_api_key = None
+    
     if okx_secret is not None:
-        account.okx_secret = okx_secret
+        if okx_secret and not okx_secret.startswith("****"):
+            account.okx_secret = okx_secret
+        elif not okx_secret:
+            account.okx_secret = None
+    
     if okx_passphrase is not None:
-        account.okx_passphrase = okx_passphrase
+        if okx_passphrase and not okx_passphrase.startswith("****"):
+            account.okx_passphrase = okx_passphrase
+        elif not okx_passphrase:
+            account.okx_passphrase = None
+    
     if okx_sandbox is not None:
         account.okx_sandbox = okx_sandbox
     

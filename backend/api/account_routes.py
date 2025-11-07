@@ -48,6 +48,10 @@ async def list_all_accounts(db: Session = Depends(get_db)):
                 "model": account.model,
                 "base_url": account.base_url,
                 "api_key": account.api_key,
+                "okx_api_key": "****" + account.okx_api_key[-4:] if account.okx_api_key else None,
+                "okx_secret": "****" if account.okx_secret else None,
+                "okx_passphrase": "****" if account.okx_passphrase else None,
+                "okx_sandbox": account.okx_sandbox or "true",
                 "is_active": account.is_active == "true"
             })
         
@@ -261,17 +265,43 @@ async def update_account_settings(account_id: int, payload: dict, db: Session = 
             logger.info(f"Updated api_key (length: {len(payload['api_key']) if payload['api_key'] else 0})")
         
         # Update OKX configuration fields
+        # Only update if the value is not a masked value (not starting with ****)
         if "okx_api_key" in payload:
-            account.okx_api_key = payload["okx_api_key"]
-            logger.info(f"Updated okx_api_key (length: {len(payload['okx_api_key']) if payload['okx_api_key'] else 0})")
+            okx_api_key_value = payload["okx_api_key"]
+            # Only update if it's not a masked value and not empty
+            if okx_api_key_value and not okx_api_key_value.startswith("****"):
+                account.okx_api_key = okx_api_key_value
+                logger.info(f"Updated okx_api_key (length: {len(okx_api_key_value)})")
+            elif not okx_api_key_value:
+                # Allow explicit clearing with empty string
+                account.okx_api_key = None
+                logger.info("Cleared okx_api_key")
+            else:
+                logger.info("Skipped okx_api_key update (masked value)")
         
         if "okx_secret" in payload:
-            account.okx_secret = payload["okx_secret"]
-            logger.info(f"Updated okx_secret (length: {len(payload['okx_secret']) if payload['okx_secret'] else 0})")
+            okx_secret_value = payload["okx_secret"]
+            # Only update if it's not a masked value and not empty
+            if okx_secret_value and not okx_secret_value.startswith("****"):
+                account.okx_secret = okx_secret_value
+                logger.info(f"Updated okx_secret (length: {len(okx_secret_value)})")
+            elif not okx_secret_value:
+                account.okx_secret = None
+                logger.info("Cleared okx_secret")
+            else:
+                logger.info("Skipped okx_secret update (masked value)")
         
         if "okx_passphrase" in payload:
-            account.okx_passphrase = payload["okx_passphrase"]
-            logger.info(f"Updated okx_passphrase (length: {len(payload['okx_passphrase']) if payload['okx_passphrase'] else 0})")
+            okx_passphrase_value = payload["okx_passphrase"]
+            # Only update if it's not a masked value and not empty
+            if okx_passphrase_value and not okx_passphrase_value.startswith("****"):
+                account.okx_passphrase = okx_passphrase_value
+                logger.info(f"Updated okx_passphrase (length: {len(okx_passphrase_value)})")
+            elif not okx_passphrase_value:
+                account.okx_passphrase = None
+                logger.info("Cleared okx_passphrase")
+            else:
+                logger.info("Skipped okx_passphrase update (masked value)")
         
         if "okx_sandbox" in payload:
             account.okx_sandbox = payload["okx_sandbox"]
@@ -304,6 +334,10 @@ async def update_account_settings(account_id: int, payload: dict, db: Session = 
             "model": account.model,
             "base_url": account.base_url,
             "api_key": account.api_key,
+            "okx_api_key": "****" + account.okx_api_key[-4:] if account.okx_api_key else None,
+            "okx_secret": "****" if account.okx_secret else None,
+            "okx_passphrase": "****" if account.okx_passphrase else None,
+            "okx_sandbox": account.okx_sandbox or "true",
             "is_active": account.is_active == "true"
         }
     except HTTPException:
