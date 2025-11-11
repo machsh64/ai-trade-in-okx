@@ -61,7 +61,8 @@ try {
     "pandas",
     "numpy",
     "websockets",
-    "pydantic"
+    "pydantic",
+    "letta-client"
   ];
   run(`"${condaPython}" -m pip install ${coreDeps.join(" ")}`);
 
